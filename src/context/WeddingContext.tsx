@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import type { WeddingConfig, Guest, WeddingTask, BudgetItem, Vendor } from '../types/wedding';
 import * as storage from '../services/storage';
 import { getAutomaticPriority } from '../data/mockData';
+import { db } from '../lib/firebase';
+import { doc, collection, onSnapshot } from 'firebase/firestore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -51,114 +53,146 @@ export function useWedding(): WeddingContextValue {
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
-// TODO (Firebase): substituir os useState + useEffect por onSnapshot listeners
-// para sincronização em tempo real com o Firestore.
 
 export function WeddingProvider({ children }: { children: React.ReactNode }) {
-  const [config, setConfig] = useState<WeddingConfig>(() => storage.getConfig());
-  const [guests, setGuests] = useState<Guest[]>(() => storage.getGuests());
+  const [config, setConfig] = useState<WeddingConfig>({
+    groom: '',
+    bride: '',
+    weddingDate: '',
+    venue: '',
+    city: '',
+    targetBudget: 0,
+  });
+  const [guests, setGuests] = useState<Guest[]>([]);
+  const [tasks, setTasks] = useState<WeddingTask[]>([]);
+  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
 
-  // Helper to load tasks with dynamic priorities computed at runtime
-  const getTasksWithAutoPriority = useCallback(() => {
-    return storage.getTasks().map((task) => ({
-      ...task,
-      priority: getAutomaticPriority(task.dueDate),
-    }));
+  // ─── Real-Time Firestore Sync ───────────────────────────────────────────────
+  useEffect(() => {
+    // 1. Config
+    const unsubConfig = onSnapshot(doc(db, 'wedding', 'config'), (docSnap) => {
+      if (docSnap.exists()) {
+        setConfig(docSnap.data() as WeddingConfig);
+      }
+    });
+
+    // 2. Guests
+    const unsubGuests = onSnapshot(collection(db, 'wedding', 'config', 'guests'), (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Guest));
+      setGuests(list);
+    });
+
+    // 3. Tasks (with automatic priority recalculation on sync)
+    const unsubTasks = onSnapshot(collection(db, 'wedding', 'config', 'tasks'), (snapshot) => {
+      const list = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          priority: getAutomaticPriority(data.dueDate ?? ''),
+        } as WeddingTask;
+      });
+      setTasks(list);
+    });
+
+    // 4. Budget Items
+    const unsubBudget = onSnapshot(collection(db, 'wedding', 'config', 'budgetItems'), (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as BudgetItem));
+      setBudgetItems(list);
+    });
+
+    // 5. Vendors
+    const unsubVendors = onSnapshot(collection(db, 'wedding', 'config', 'vendors'), (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Vendor));
+      setVendors(list);
+    });
+
+    return () => {
+      unsubConfig();
+      unsubGuests();
+      unsubTasks();
+      unsubBudget();
+      unsubVendors();
+    };
   }, []);
 
-  const [tasks, setTasks] = useState<WeddingTask[]>(() => getTasksWithAutoPriority());
-  const [budgetItems, setBudgetItems] = useState<BudgetItem[]>(() => storage.getBudgetItems());
-  const [vendors, setVendors] = useState<Vendor[]>(() => storage.getVendors());
-
-  // Sync state → localStorage on every change
-  // TODO (Firebase): remover esses useEffects quando usar onSnapshot
-  useEffect(() => { storage.saveConfig(config); }, [config]);
-  useEffect(() => { /* guests are saved immediately on mutation */ }, [guests]);
-  useEffect(() => { /* tasks are saved immediately on mutation */ }, [tasks]);
-  useEffect(() => { /* budgetItems are saved immediately on mutation */ }, [budgetItems]);
-  useEffect(() => { /* vendors are saved immediately on mutation */ }, [vendors]);
+  // ─── Write Actions ──────────────────────────────────────────────────────────
 
   // Config
   const updateConfig = useCallback((c: WeddingConfig) => {
     storage.saveConfig(c);
-    setConfig(c);
   }, []);
 
   // Guests
   const addGuest = useCallback((g: Omit<Guest, 'id'>) => {
-    const newGuest = storage.addGuest(g);
-    setGuests(storage.getGuests());
-    return newGuest;
+    storage.addGuest(g);
   }, []);
 
   const updateGuest = useCallback((id: string, updates: Partial<Omit<Guest, 'id'>>) => {
     storage.updateGuest(id, updates);
-    setGuests(storage.getGuests());
   }, []);
 
   const deleteGuest = useCallback((id: string) => {
     storage.deleteGuest(id);
-    setGuests(storage.getGuests());
   }, []);
 
   // Tasks
   const addTask = useCallback((t: Omit<WeddingTask, 'id'>) => {
     storage.addTask(t);
-    setTasks(getTasksWithAutoPriority());
-  }, [getTasksWithAutoPriority]);
+  }, []);
 
   const updateTask = useCallback((id: string, updates: Partial<Omit<WeddingTask, 'id'>>) => {
     storage.updateTask(id, updates);
-    setTasks(getTasksWithAutoPriority());
-  }, [getTasksWithAutoPriority]);
+  }, []);
 
   const deleteTask = useCallback((id: string) => {
     storage.deleteTask(id);
-    setTasks(getTasksWithAutoPriority());
-  }, [getTasksWithAutoPriority]);
+  }, []);
 
   // Budget
   const addBudgetItem = useCallback((item: Omit<BudgetItem, 'id'>) => {
     storage.addBudgetItem(item);
-    setBudgetItems(storage.getBudgetItems());
   }, []);
 
   const updateBudgetItem = useCallback((id: string, updates: Partial<Omit<BudgetItem, 'id'>>) => {
     storage.updateBudgetItem(id, updates);
-    setBudgetItems(storage.getBudgetItems());
   }, []);
 
   const deleteBudgetItem = useCallback((id: string) => {
     storage.deleteBudgetItem(id);
-    setBudgetItems(storage.getBudgetItems());
   }, []);
 
   // Vendors
   const addVendor = useCallback((v: Omit<Vendor, 'id'>) => {
     storage.addVendor(v);
-    setVendors(storage.getVendors());
   }, []);
 
   const updateVendor = useCallback((id: string, updates: Partial<Omit<Vendor, 'id'>>) => {
     storage.updateVendor(id, updates);
-    setVendors(storage.getVendors());
   }, []);
 
   const deleteVendor = useCallback((id: string) => {
     storage.deleteVendor(id);
-    setVendors(storage.getVendors());
   }, []);
 
-  // Reset all
+  // Reset all (Loops over current collections in Firestore and removes them)
   const resetAll = useCallback(() => {
-    storage.resetAll();
-    const empty: WeddingConfig = { groom: '', bride: '', weddingDate: '', venue: '', city: '', targetBudget: 0 };
-    setConfig(empty);
-    setGuests([]);
-    setTasks([]);
-    setBudgetItems([]);
-    setVendors([]);
-  }, []);
+    storage.saveConfig({ groom: '', bride: '', weddingDate: '', venue: '', city: '', targetBudget: 0 });
+    guests.forEach((g) => storage.deleteGuest(g.id));
+    tasks.forEach((t) => storage.deleteTask(t.id));
+    budgetItems.forEach((i) => storage.deleteBudgetItem(i.id));
+    vendors.forEach((v) => storage.deleteVendor(v.id));
+  }, [guests, tasks, budgetItems, vendors]);
 
   return (
     <WeddingContext.Provider
