@@ -106,8 +106,9 @@ function VendorModal({ initial, onSave, onClose }: VendorModalProps) {
           </FormField>
 
           <FormField label="Valor do contrato (R$)" id="v-value">
-            <input id="v-value" type="number" min={0} step="0.01" value={form.contractValue ?? 0}
-              onChange={(e) => setForm((f) => ({ ...f, contractValue: Number(e.target.value) }))} />
+            <input id="v-value" type="number" min={0} step="0.01" value={form.contractValue || ''}
+              onChange={(e) => setForm((f) => ({ ...f, contractValue: e.target.value === '' ? 0 : Number(e.target.value) }))}
+              placeholder="0,00" />
           </FormField>
 
           <FormField label="Observações" id="v-notes">

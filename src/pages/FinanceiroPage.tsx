@@ -69,12 +69,14 @@ function ItemModal({ initial, onSave, onClose }: ItemModalProps) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <FormField label="Valor estimado (R$)" id="b-est">
-              <input id="b-est" type="number" min={0} step="0.01" value={form.estimatedValue}
-                onChange={(e) => setForm((f) => ({ ...f, estimatedValue: Number(e.target.value) }))} />
+              <input id="b-est" type="number" min={0} step="0.01" value={form.estimatedValue || ''}
+                onChange={(e) => setForm((f) => ({ ...f, estimatedValue: e.target.value === '' ? 0 : Number(e.target.value) }))}
+                placeholder="0,00" />
             </FormField>
             <FormField label="Valor pago (R$)" id="b-paid">
-              <input id="b-paid" type="number" min={0} step="0.01" value={form.paidValue}
-                onChange={(e) => setForm((f) => ({ ...f, paidValue: Number(e.target.value) }))} />
+              <input id="b-paid" type="number" min={0} step="0.01" value={form.paidValue || ''}
+                onChange={(e) => setForm((f) => ({ ...f, paidValue: e.target.value === '' ? 0 : Number(e.target.value) }))}
+                placeholder="0,00" />
             </FormField>
           </div>
 
@@ -114,7 +116,11 @@ export function FinanceiroPage() {
 
   const targetBudget = config.targetBudget ?? 0;
   const [isEditingBudget, setIsEditingBudget] = useState(false);
-  const [budgetInputValue, setBudgetInputValue] = useState(targetBudget.toString());
+  const [budgetInputValue, setBudgetInputValue] = useState(targetBudget === 0 ? '' : targetBudget.toString());
+
+  useEffect(() => {
+    setBudgetInputValue(targetBudget === 0 ? '' : targetBudget.toString());
+  }, [targetBudget]);
 
   const totalEstimated = budgetItems.reduce((a, i) => a + i.estimatedValue, 0);
   const totalPaid = budgetItems.reduce((a, i) => a + i.paidValue, 0);
