@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DollarSign, Plus, Pencil, Trash2, X, Save, TrendingUp, Wallet, CheckCircle } from 'lucide-react';
 import { useWedding } from '../context/WeddingContext';
 import type { BudgetItem, BudgetCategory } from '../types/wedding';
