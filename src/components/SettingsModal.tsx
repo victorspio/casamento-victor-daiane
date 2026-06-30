@@ -8,9 +8,19 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const { config, updateConfig, resetAll } = useWedding();
+  const { config, updateConfig, resetAll, addGuest, addTask, addBudgetItem, addVendor } = useWedding();
   const [form, setForm] = useState<WeddingConfig>({ ...config });
   const [confirmReset, setConfirmReset] = useState(false);
+
+  const [hasLocalData, setHasLocalData] = useState(() => {
+    return !!(
+      localStorage.getItem('wedding:config') ||
+      localStorage.getItem('wedding:guests') ||
+      localStorage.getItem('wedding:tasks') ||
+      localStorage.getItem('wedding:budgetItems') ||
+      localStorage.getItem('wedding:vendors')
+    );
+  });
 
   function handleSave() {
     updateConfig(form);
@@ -23,6 +33,71 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       onClose();
     } else {
       setConfirmReset(true);
+    }
+  }
+
+  async function handleMigration() {
+    try {
+      // 1. Config
+      const rawConfig = localStorage.getItem('wedding:config');
+      if (rawConfig) {
+        const parsed = JSON.parse(rawConfig);
+        await updateConfig(parsed);
+      }
+
+      // 2. Guests
+      const rawGuests = localStorage.getItem('wedding:guests');
+      if (rawGuests) {
+        const parsed = JSON.parse(rawGuests);
+        for (const g of parsed) {
+          const { id, ...data } = g;
+          await addGuest(data);
+        }
+      }
+
+      // 3. Tasks
+      const rawTasks = localStorage.getItem('wedding:tasks');
+      if (rawTasks) {
+        const parsed = JSON.parse(rawTasks);
+        for (const t of parsed) {
+          const { id, ...data } = t;
+          await addTask(data);
+        }
+      }
+
+      // 4. Budget Items
+      const rawBudget = localStorage.getItem('wedding:budgetItems');
+      if (rawBudget) {
+        const parsed = JSON.parse(rawBudget);
+        for (const b of parsed) {
+          const { id, ...data } = b;
+          await addBudgetItem(data);
+        }
+      }
+
+      // 5. Vendors
+      const rawVendors = localStorage.getItem('wedding:vendors');
+      if (rawVendors) {
+        const parsed = JSON.parse(rawVendors);
+        for (const v of parsed) {
+          const { id, ...data } = v;
+          await addVendor(data);
+        }
+      }
+
+      // Clean local storage
+      localStorage.removeItem('wedding:config');
+      localStorage.removeItem('wedding:guests');
+      localStorage.removeItem('wedding:tasks');
+      localStorage.removeItem('wedding:budgetItems');
+      localStorage.removeItem('wedding:vendors');
+
+      setHasLocalData(false);
+      alert("Migração concluída com sucesso! Seus dados foram importados para o Firebase Firestore em tempo real.");
+      onClose();
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao importar dados locais. Verifique o console.");
     }
   }
 
@@ -154,6 +229,43 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
             />
           </Field>
         </div>
+
+        {/* Migration option */}
+        {hasLocalData && (
+          <div style={{
+            background: 'var(--color-brand-bg)',
+            border: '1px dashed var(--color-brand)',
+            borderRadius: '12px',
+            padding: '12px',
+            marginTop: '1.25rem',
+            textAlign: 'center'
+          }}>
+            <p style={{ margin: '0 0 8px 0', fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+              Encontramos dados salvos localmente. Quer migrá-los para o Firebase Firestore?
+            </p>
+            <button
+              onClick={handleMigration}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: 'var(--color-brand)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                padding: '8px 14px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                width: '100%',
+                justifyContent: 'center',
+                boxSizing: 'border-box'
+              }}
+            >
+              ☁️ Importar dados para nuvem
+            </button>
+          </div>
+        )}
 
         {/* Actions */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '1.75rem' }}>
