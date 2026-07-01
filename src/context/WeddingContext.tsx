@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import type { WeddingConfig, Guest, WeddingTask, BudgetItem, Vendor } from '../types/wedding';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import type { WeddingConfig, Guest, Invite, InviteWithGuests, WeddingTask, BudgetItem, Vendor } from '../types/wedding';
 import * as storage from '../services/storage';
 import { getAutomaticPriority } from '../data/mockData';
 import { db } from '../lib/firebase';
@@ -11,6 +11,8 @@ interface WeddingContextValue {
   // Data
   config: WeddingConfig;
   guests: Guest[];
+  invites: Invite[];
+  invitesWithGuests: InviteWithGuests[];
   tasks: WeddingTask[];
   budgetItems: BudgetItem[];
   vendors: Vendor[];
@@ -18,10 +20,18 @@ interface WeddingContextValue {
   // Config actions
   updateConfig: (config: WeddingConfig) => void;
 
-  // Guest actions
-  addGuest: (guest: Omit<Guest, 'id'>) => void;
+  // Invite actions
+  createInvite: (inviteData: Omit<Invite, 'id'>, guestData: Omit<Guest, 'id' | 'inviteId'>) => void;
+  bulkCreateInvites: (items: Array<{ invite: Omit<Invite, 'id'>; guest: Omit<Guest, 'id' | 'inviteId'> }>) => void;
+  updateInvite: (id: string, updates: Partial<Omit<Invite, 'id'>>) => void;
+  deleteInvite: (inviteId: string) => void;
+  addPersonToInvite: (inviteId: string, guestData: Omit<Guest, 'id' | 'inviteId'>) => void;
+  mergeInvites: (targetId: string, sourceIds: string[], displayName?: string) => void;
+  splitGuest: (guestId: string) => void;
+
+  // Guest actions (individual edits — still needed for RSVP page etc.)
   updateGuest: (id: string, updates: Partial<Omit<Guest, 'id'>>) => void;
-  deleteGuest: (id: string) => void;
+  deleteGuest: (guestId: string) => void;
 
   // Task actions
   addTask: (task: Omit<WeddingTask, 'id'>) => void;
@@ -64,9 +74,13 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
     targetBudget: 0,
   });
   const [guests, setGuests] = useState<Guest[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
   const [tasks, setTasks] = useState<WeddingTask[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+
+  // Garante que a migração só roda uma vez por sessão
+  const migrationDoneRef = useRef(false);
 
   // ─── Real-Time Firestore Sync ───────────────────────────────────────────────
   useEffect(() => {
@@ -86,7 +100,16 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
       setGuests(list);
     });
 
-    // 3. Tasks (with automatic priority recalculation on sync)
+    // 3. Invites
+    const unsubInvites = onSnapshot(collection(db, 'wedding', 'config', 'invites'), (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as Invite));
+      setInvites(list);
+    });
+
+    // 4. Tasks (with automatic priority recalculation on sync)
     const unsubTasks = onSnapshot(collection(db, 'wedding', 'config', 'tasks'), (snapshot) => {
       const list = snapshot.docs.map((doc) => {
         const data = doc.data();
@@ -99,7 +122,7 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
       setTasks(list);
     });
 
-    // 4. Budget Items
+    // 5. Budget Items
     const unsubBudget = onSnapshot(collection(db, 'wedding', 'config', 'budgetItems'), (snapshot) => {
       const list = snapshot.docs.map((doc) => ({
         id: doc.id,
@@ -108,7 +131,7 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
       setBudgetItems(list);
     });
 
-    // 5. Vendors
+    // 6. Vendors
     const unsubVendors = onSnapshot(collection(db, 'wedding', 'config', 'vendors'), (snapshot) => {
       const list = snapshot.docs.map((doc) => ({
         id: doc.id,
@@ -120,11 +143,40 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
     return () => {
       unsubConfig();
       unsubGuests();
+      unsubInvites();
       unsubTasks();
       unsubBudget();
       unsubVendors();
     };
   }, []);
+
+  // ─── Migração automática ────────────────────────────────────────────────────
+  // Detecta guests sem inviteId e cria convites para eles (uma única vez).
+  useEffect(() => {
+    if (migrationDoneRef.current) return;
+    if (guests.length === 0) return; // aguarda Firestore responder
+    migrationDoneRef.current = true;
+    const unmigrated = guests.filter(g => !g.inviteId);
+    if (unmigrated.length > 0) {
+      storage.migrateGuestsToInvites(unmigrated);
+    }
+  }, [guests]);
+
+  // ─── Tipo derivado: InviteWithGuests ────────────────────────────────────────
+  const invitesWithGuests = useMemo<InviteWithGuests[]>(() => {
+    return invites.map(invite => {
+      const iGuests = guests.filter(g => g.inviteId === invite.id);
+      const confirmedCount = iGuests.filter(g => g.status === 'confirmed').length;
+      const autoName = iGuests.map(g => g.name).join(' + ') || 'Convidado';
+      return {
+        invite,
+        guests: iGuests,
+        displayName: invite.displayName || autoName,
+        confirmedCount,
+        totalCount: iGuests.length,
+      };
+    });
+  }, [invites, guests]);
 
   // ─── Write Actions ──────────────────────────────────────────────────────────
 
@@ -133,18 +185,58 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
     storage.saveConfig(c);
   }, []);
 
-  // Guests
-  const addGuest = useCallback((g: Omit<Guest, 'id'>) => {
-    storage.addGuest(g);
+  // Invites
+  const createInvite = useCallback((
+    inviteData: Omit<Invite, 'id'>,
+    guestData: Omit<Guest, 'id' | 'inviteId'>,
+  ) => {
+    storage.createInvite(inviteData, guestData);
   }, []);
 
+  const bulkCreateInvites = useCallback((
+    items: Array<{ invite: Omit<Invite, 'id'>; guest: Omit<Guest, 'id' | 'inviteId'> }>,
+  ) => {
+    storage.createInvitesBulk(items);
+  }, []);
+
+  const updateInvite = useCallback((id: string, updates: Partial<Omit<Invite, 'id'>>) => {
+    storage.updateInvite(id, updates);
+  }, []);
+
+  const deleteInvite = useCallback((inviteId: string) => {
+    const guestIds = guests.filter(g => g.inviteId === inviteId).map(g => g.id);
+    storage.deleteInvite(inviteId, guestIds);
+  }, [guests]);
+
+  const addPersonToInvite = useCallback((inviteId: string, guestData: Omit<Guest, 'id' | 'inviteId'>) => {
+    storage.addPersonToInvite(inviteId, guestData);
+  }, []);
+
+  const mergeInvites = useCallback((targetId: string, sourceIds: string[], displayName?: string) => {
+    const guestIdsByInvite: Record<string, string[]> = {};
+    sourceIds.forEach(id => {
+      guestIdsByInvite[id] = guests.filter(g => g.inviteId === id).map(g => g.id);
+    });
+    storage.mergeInvites(targetId, sourceIds, guestIdsByInvite, displayName);
+  }, [guests]);
+
+  const splitGuest = useCallback((guestId: string) => {
+    const guest = guests.find(g => g.id === guestId);
+    if (!guest) return;
+    storage.splitGuest(guestId, { group: guest.group, tableNumber: guest.tableNumber });
+  }, [guests]);
+
+  // Guest individual ops
   const updateGuest = useCallback((id: string, updates: Partial<Omit<Guest, 'id'>>) => {
     storage.updateGuest(id, updates);
   }, []);
 
-  const deleteGuest = useCallback((id: string) => {
-    storage.deleteGuest(id);
-  }, []);
+  const deleteGuest = useCallback((guestId: string) => {
+    const guest = guests.find(g => g.id === guestId);
+    if (!guest) return;
+    const isLast = guests.filter(g => g.inviteId === guest.inviteId).length <= 1;
+    storage.deleteGuest(guestId, guest.inviteId, isLast);
+  }, [guests]);
 
   // Tasks
   const addTask = useCallback((t: Omit<WeddingTask, 'id'>) => {
@@ -185,21 +277,26 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
     storage.deleteVendor(id);
   }, []);
 
-  // Reset all (Loops over current collections in Firestore and removes them)
+  // Reset all
   const resetAll = useCallback(() => {
     storage.saveConfig({ groom: '', bride: '', weddingDate: '', venue: '', city: '', targetBudget: 0 });
-    guests.forEach((g) => storage.deleteGuest(g.id));
-    tasks.forEach((t) => storage.deleteTask(t.id));
-    budgetItems.forEach((i) => storage.deleteBudgetItem(i.id));
-    vendors.forEach((v) => storage.deleteVendor(v.id));
-  }, [guests, tasks, budgetItems, vendors]);
+    invites.forEach(i => {
+      const guestIds = guests.filter(g => g.inviteId === i.id).map(g => g.id);
+      storage.deleteInvite(i.id, guestIds);
+    });
+    tasks.forEach(t => storage.deleteTask(t.id));
+    budgetItems.forEach(i => storage.deleteBudgetItem(i.id));
+    vendors.forEach(v => storage.deleteVendor(v.id));
+  }, [guests, invites, tasks, budgetItems, vendors]);
 
   return (
     <WeddingContext.Provider
       value={{
-        config, guests, tasks, budgetItems, vendors,
+        config, guests, invites, invitesWithGuests, tasks, budgetItems, vendors,
         updateConfig,
-        addGuest, updateGuest, deleteGuest,
+        createInvite, bulkCreateInvites, updateInvite, deleteInvite,
+        addPersonToInvite, mergeInvites, splitGuest,
+        updateGuest, deleteGuest,
         addTask, updateTask, deleteTask,
         addBudgetItem, updateBudgetItem, deleteBudgetItem,
         addVendor, updateVendor, deleteVendor,

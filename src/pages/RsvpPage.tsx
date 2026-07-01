@@ -1,18 +1,46 @@
-import { useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Heart, CheckCircle2, XCircle, ArrowLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Heart, CheckCircle2, XCircle, ArrowLeft, Check, X } from 'lucide-react';
 import { useWedding } from '../context/WeddingContext';
+import type { Guest } from '../types/wedding';
 
 export function RsvpPage() {
-  const { guestId } = useParams<{ guestId: string }>();
+  const { inviteId, guestId } = useParams<{ inviteId?: string; guestId?: string }>();
   const { guests, config, updateGuest } = useWedding();
   const [submitted, setSubmitted] = useState(false);
-  const [responseStatus, setResponseStatus] = useState<'confirmed' | 'declined' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Encontra o convidado
-  const guest = guests.find((g) => g.id === guestId);
+  // Armazena as respostas locais do formulário: { [guestId]: 'confirmed' | 'declined' }
+  const [responses, setResponses] = useState<Record<string, 'confirmed' | 'declined' | 'pending'>>({});
 
-  if (!guest) {
+  // Encontra os convidados pertencentes ao convite
+  let inviteGuests: Guest[] = [];
+
+  if (inviteId) {
+    inviteGuests = guests.filter((g) => g.inviteId === inviteId);
+  } else if (guestId) {
+    const singleGuest = guests.find((g) => g.id === guestId);
+    if (singleGuest) {
+      if (singleGuest.inviteId) {
+        inviteGuests = guests.filter((g) => g.inviteId === singleGuest.inviteId);
+      } else {
+        inviteGuests = [singleGuest];
+      }
+    }
+  }
+
+  // Inicializa o estado local das respostas quando os convidados carregam
+  useEffect(() => {
+    if (inviteGuests.length > 0 && Object.keys(responses).length === 0) {
+      const initial: Record<string, 'confirmed' | 'declined' | 'pending'> = {};
+      inviteGuests.forEach((g) => {
+        initial[g.id] = g.status;
+      });
+      setResponses(initial);
+    }
+  }, [inviteGuests]);
+
+  if (guests.length > 0 && inviteGuests.length === 0) {
     return (
       <div style={containerStyle}>
         <div className="card animate-fade-in-up" style={cardStyle}>
@@ -52,17 +80,37 @@ export function RsvpPage() {
       })
     : '';
 
-  function handleRsvp(status: 'confirmed' | 'declined') {
-    updateGuest(guest!.id, { status, plusOne: false });
-    setResponseStatus(status);
-    setSubmitted(true);
+  function handleSelectStatus(gId: string, status: 'confirmed' | 'declined') {
+    setResponses((prev) => ({ ...prev, [gId]: status }));
   }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      // Salva cada resposta individualmente
+      for (const g of inviteGuests) {
+        const status = responses[g.id] || 'pending';
+        await updateGuest(g.id, { status });
+      }
+      setSubmitted(true);
+    } catch (err) {
+      console.error(err);
+      alert('Ocorreu um erro ao salvar suas respostas. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  // Verifica se todos responderam (nenhum pendente na tela)
+  const anyUnanswered = inviteGuests.some(g => !responses[g.id] || responses[g.id] === 'pending');
 
   return (
     <div style={containerStyle}>
       <div className="card animate-fade-in-up" style={cardStyle}>
         {!submitted ? (
-          <div>
+          <form onSubmit={handleSubmit}>
             {/* Header */}
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
               <div style={heartIconContainerStyle}>
@@ -82,70 +130,108 @@ export function RsvpPage() {
               )}
             </div>
 
-            {/* Guest Welcome */}
-            <div style={welcomeBoxStyle}>
-              <p style={{ margin: 0, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                Convidado(a)
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-brand)' }}>
-                {guest.name}
-              </p>
-              {guest.group && (
-                <p style={{ margin: '2px 0 0', fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>
-                  {guest.group}
-                </p>
-              )}
+            <p style={{
+              fontSize: '0.85rem', color: 'var(--color-text-secondary)',
+              textAlign: 'center', marginBottom: '1.5rem', lineHeight: 1.5
+            }}>
+              Por favor, confirme a presença de cada convidado abaixo:
+            </p>
+
+            {/* List of Guests in Invite */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+              {inviteGuests.map((g) => {
+                const currentStatus = responses[g.id];
+                return (
+                  <div
+                    key={g.id}
+                    style={{
+                      background: 'var(--color-surface-2)', border: '1px solid var(--color-border)',
+                      borderRadius: '16px', padding: '16px', display: 'flex',
+                      flexDirection: 'column', gap: '12px'
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, color: 'var(--color-text-primary)', fontSize: '0.95rem' }}>
+                      {g.name}
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectStatus(g.id, 'confirmed')}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                          padding: '10px', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 600,
+                          cursor: 'pointer', border: '1.5px solid var(--color-border)',
+                          transition: 'all 0.15s',
+                          background: currentStatus === 'confirmed' ? '#f0fdf4' : 'transparent',
+                          color: currentStatus === 'confirmed' ? 'var(--color-success)' : 'var(--color-text-secondary)',
+                          borderColor: currentStatus === 'confirmed' ? 'var(--color-success)' : 'var(--color-border)',
+                        }}
+                      >
+                        <Check size={14} /> Presença Confirmada
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSelectStatus(g.id, 'declined')}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                          padding: '10px', borderRadius: '10px', fontSize: '0.82rem', fontWeight: 600,
+                          cursor: 'pointer', border: '1.5px solid var(--color-border)',
+                          transition: 'all 0.15s',
+                          background: currentStatus === 'declined' ? '#fef2f2' : 'transparent',
+                          color: currentStatus === 'declined' ? 'var(--color-danger)' : 'var(--color-text-secondary)',
+                          borderColor: currentStatus === 'declined' ? 'var(--color-danger)' : 'var(--color-border)',
+                        }}
+                      >
+                        <X size={14} /> Não poderei ir
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {/* RSVP Form */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              style={{
+                ...submitButtonStyle,
+                opacity: isSubmitting ? 0.7 : 1,
+                cursor: isSubmitting ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {isSubmitting ? 'Enviando...' : 'Confirmar Presenças'}
+            </button>
 
-
-              {/* Action Buttons */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button
-                  onClick={() => handleRsvp('declined')}
-                  style={declineButtonStyle}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = '#fef2f2')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                >
-                  <XCircle size={16} /> Não poderei ir
-                </button>
-                <button
-                  onClick={() => handleRsvp('confirmed')}
-                  style={confirmButtonStyle}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-brand-dark)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-brand)')}
-                >
-                  <CheckCircle2 size={16} /> Confirmar Presença
-                </button>
-              </div>
-            </div>
-          </div>
+            {anyUnanswered && (
+              <p style={{
+                textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)',
+                marginTop: '10px', margin: '10px 0 0 0'
+              }}>
+                * Responda para todos os convidados acima antes de confirmar.
+              </p>
+            )}
+          </form>
         ) : (
-          /* Success/Confirmation Screen */
+          /* Success Screen */
           <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-            <div style={successIconContainerStyle(responseStatus === 'confirmed')}>
-              {responseStatus === 'confirmed' ? (
-                <CheckCircle2 size={36} color="var(--color-success)" />
-              ) : (
-                <XCircle size={36} color="var(--color-danger)" />
-              )}
+            <div style={successIconContainerStyle}>
+              <CheckCircle2 size={36} color="var(--color-success)" />
             </div>
 
             <h2 className="font-display" style={{ fontSize: '1.6rem', color: 'var(--color-text-primary)', marginBottom: '0.75rem' }}>
-              {responseStatus === 'confirmed' ? 'Presença Confirmada!' : 'Resposta Enviada'}
+              Respostas Enviadas!
             </h2>
 
             <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, marginBottom: '2rem' }}>
-              {responseStatus === 'confirmed'
-                ? 'Obrigado por confirmar! Estamos ansiosos para celebrar este dia especial com você.'
-                : 'Poxa, que pena que não poderá ir. Agradecemos por nos avisar!'}
+              Agradecemos imensamente a sua resposta. As confirmações já foram atualizadas no planejamento dos noivos!
             </p>
 
             <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.5rem' }}>
               <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-                Quer alterar sua resposta? Basta clicar no link do convite novamente a qualquer momento.
+                Quer alterar alguma resposta? Basta acessar este mesmo link novamente a qualquer momento.
               </p>
             </div>
           </div>
@@ -214,59 +300,32 @@ const dateBoxStyle: React.CSSProperties = {
   border: '1px solid var(--color-border)',
 };
 
-const welcomeBoxStyle: React.CSSProperties = {
-  padding: '1.25rem',
-  background: 'var(--color-brand-bg)',
-  borderRadius: '16px',
-  border: '1px solid rgba(176,141,110,0.15)',
-  marginBottom: '1.5rem',
-  textAlign: 'center',
-};
-
-
-
-const confirmButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
+const submitButtonStyle: React.CSSProperties = {
+  display: 'flex',
+  width: '100%',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: '8px',
   background: 'var(--color-brand)',
   color: '#fff',
   border: 'none',
   borderRadius: '12px',
-  padding: '12px',
-  fontSize: '0.88rem',
+  padding: '14px',
+  fontSize: '0.9rem',
   fontWeight: 600,
   cursor: 'pointer',
   transition: 'background 0.2s',
 };
 
-const declineButtonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '8px',
-  background: 'transparent',
-  color: 'var(--color-danger)',
-  border: '1px solid #fecaca',
-  borderRadius: '12px',
-  padding: '12px',
-  fontSize: '0.88rem',
-  fontWeight: 600,
-  cursor: 'pointer',
-  transition: 'all 0.2s',
-};
-
-const successIconContainerStyle = (isConfirmed: boolean): React.CSSProperties => ({
+const successIconContainerStyle: React.CSSProperties = {
   width: '72px',
   height: '72px',
   borderRadius: '50%',
-  background: isConfirmed ? '#f0fdf4' : '#fef2f2',
+  background: '#f0fdf4',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   margin: '0 auto 1.25rem',
-});
+};
 
 const backLinkStyle: React.CSSProperties = {
   display: 'inline-flex',
@@ -277,3 +336,4 @@ const backLinkStyle: React.CSSProperties = {
   textDecoration: 'none',
   fontWeight: 500,
 };
+

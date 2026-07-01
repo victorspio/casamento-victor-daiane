@@ -4,6 +4,7 @@ export type RsvpStatus = 'confirmed' | 'pending' | 'declined';
 
 export interface Guest {
   id: string;
+  inviteId: string;       // cada convidado pertence a exatamente um convite
   name: string;
   group: string;
   status: RsvpStatus;
@@ -16,6 +17,25 @@ export interface GuestSummary {
   confirmed: number;
   pending: number;
   declined: number;
+}
+
+// ─── Invite Types ─────────────────────────────────────────────────────────────
+
+/** Um convite agrupa 1 ou mais convidados com um único link de RSVP. */
+export interface Invite {
+  id: string;
+  displayName?: string;   // se ausente, gerado concatenando nomes dos guests
+  group: string;
+  tableNumber?: number;
+}
+
+/** Tipo derivado calculado em memória — convite + seus convidados. */
+export interface InviteWithGuests {
+  invite: Invite;
+  guests: Guest[];
+  displayName: string;    // invite.displayName ?? guests.map(g => g.name).join(' + ')
+  confirmedCount: number;
+  totalCount: number;
 }
 
 // ─── Task Types ────────────────────────────────────────────────────────────────

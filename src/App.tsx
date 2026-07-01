@@ -16,6 +16,7 @@ function App() {
       <Routes>
         {/* Rota do Convidado (Sem cabeçalho/admin) */}
         <Route path="/rsvp/:guestId" element={<RsvpPage />} />
+        <Route path="/rsvp/invite/:inviteId" element={<RsvpPage />} />
 
         {/* Rotas do Painel Admin (Com Layout) */}
         <Route
