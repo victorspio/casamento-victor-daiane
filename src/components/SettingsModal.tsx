@@ -8,7 +8,7 @@ interface SettingsModalProps {
 }
 
 export function SettingsModal({ onClose }: SettingsModalProps) {
-  const { config, updateConfig, resetAll, addGuest, addTask, addBudgetItem, addVendor } = useWedding();
+  const { config, updateConfig, resetAll, bulkCreateInvites, addTask, addBudgetItem, addVendor } = useWedding();
   const [form, setForm] = useState<WeddingConfig>({ ...config });
   const [confirmReset, setConfirmReset] = useState(false);
 
@@ -49,10 +49,17 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
       const rawGuests = localStorage.getItem('wedding:guests');
       if (rawGuests) {
         const parsed = JSON.parse(rawGuests);
-        for (const g of parsed) {
-          const { id, ...data } = g;
-          await addGuest(data);
-        }
+        const items = parsed.map((g: any) => {
+          const { id, inviteId, ...data } = g;
+          return {
+            invite: {
+              group: data.group || 'Convidados',
+              tableNumber: data.tableNumber,
+            },
+            guest: data,
+          };
+        });
+        await bulkCreateInvites(items);
       }
 
       // 3. Tasks

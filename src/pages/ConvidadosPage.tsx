@@ -18,7 +18,7 @@ import {
   Scissors
 } from 'lucide-react';
 import { useWedding } from '../context/WeddingContext';
-import type { Guest, Invite, InviteWithGuests, RsvpStatus } from '../types/wedding';
+import type { Guest, Invite, RsvpStatus } from '../types/wedding';
 
 // ─── Modal para Criar/Editar Convite ou Convidado ───────────────────────────
 interface GuestOrInviteModalProps {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Heart, CheckCircle2, XCircle, ArrowLeft, Check, X } from 'lucide-react';
+import { useParams } from 'react-router-dom';
+import { Heart, CheckCircle2, ArrowLeft, Check, X } from 'lucide-react';
 import { useWedding } from '../context/WeddingContext';
 import type { Guest } from '../types/wedding';
 
