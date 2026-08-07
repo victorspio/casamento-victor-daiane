@@ -15,10 +15,12 @@ import {
   ChevronDown,
   ChevronRight,
   UserPlus,
-  Scissors
+  Scissors,
+  Utensils,
+  Church
 } from 'lucide-react';
 import { useWedding } from '../context/WeddingContext';
-import type { Guest, Invite, RsvpStatus } from '../types/wedding';
+import type { Guest, Invite, RsvpStatus, EventType } from '../types/wedding';
 
 // ─── Modal para Criar/Editar Convite ou Convidado ───────────────────────────
 interface GuestOrInviteModalProps {
@@ -36,6 +38,7 @@ function GuestOrInviteModal({ mode, inviteId, initialInvite, initialGuest, onClo
     displayName: initialInvite?.displayName ?? '',
     group: initialInvite?.group ?? 'Convidados do Noivo',
     tableNumber: initialInvite?.tableNumber ?? '' as number | '',
+    eventType: (initialInvite?.eventType ?? 'reception') as EventType,
   });
 
   const [guestForm, setGuestForm] = useState({
@@ -55,6 +58,7 @@ function GuestOrInviteModal({ mode, inviteId, initialInvite, initialGuest, onClo
           displayName: inviteForm.displayName.trim() || undefined,
           group: inviteForm.group,
           tableNumber: formattedTable,
+          eventType: inviteForm.eventType,
         },
         {
           name: guestForm.name.trim(),
@@ -62,6 +66,7 @@ function GuestOrInviteModal({ mode, inviteId, initialInvite, initialGuest, onClo
           status: guestForm.status,
           plusOne: false,
           tableNumber: formattedTable,
+          eventType: inviteForm.eventType,
         }
       );
     } else if (mode === 'edit_invite' && initialInvite) {
@@ -69,6 +74,7 @@ function GuestOrInviteModal({ mode, inviteId, initialInvite, initialGuest, onClo
         displayName: inviteForm.displayName.trim() || undefined,
         group: inviteForm.group,
         tableNumber: formattedTable,
+        eventType: inviteForm.eventType,
       });
     } else if (mode === 'edit_guest' && initialGuest) {
       if (!guestForm.name.trim()) return;
@@ -123,6 +129,34 @@ function GuestOrInviteModal({ mode, inviteId, initialInvite, initialGuest, onClo
                   onChange={(e) => setInviteForm((f) => ({ ...f, displayName: e.target.value }))}
                   placeholder="Gerado automaticamente se vazio" />
               </FormField>
+
+              {/* Tipo de Evento */}
+              <div>
+                <p style={{ margin: '0 0 8px', fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', letterSpacing: '0.05em' }}>TIPO DE EVENTO</p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {([
+                    { value: 'reception', label: '🥂 Recepção', desc: 'Jantar / Festa' },
+                    { value: 'ceremony', label: '⛪ Cerimônia', desc: 'Apenas cerimônia' },
+                  ] as { value: EventType; label: string; desc: string }[]).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setInviteForm((f) => ({ ...f, eventType: opt.value }))}
+                      style={{
+                        flex: 1, padding: '10px 12px', borderRadius: '10px',
+                        border: `1.5px solid ${inviteForm.eventType === opt.value ? (opt.value === 'reception' ? '#8b5cf6' : '#3b82f6') : 'var(--color-border)'}`,
+                        background: inviteForm.eventType === opt.value
+                          ? (opt.value === 'reception' ? 'rgba(139,92,246,0.08)' : 'rgba(59,130,246,0.08)')
+                          : 'var(--color-surface-2)',
+                        cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: inviteForm.eventType === opt.value ? (opt.value === 'reception' ? '#8b5cf6' : '#3b82f6') : 'var(--color-text-primary)' }}>{opt.label}</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>{opt.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <FormField label="Grupo / Origem" id="inv-group">
                 <select id="inv-group" value={inviteForm.group}
@@ -258,6 +292,7 @@ function BulkImportModal({ onClose }: BulkImportModalProps) {
   const [rawText, setRawText] = useState('');
   const [groupMode, setGroupMode] = useState<'groom' | 'bride' | 'custom'>('groom');
   const [customGroup, setCustomGroup] = useState('');
+  const [eventTypeMode, setEventTypeMode] = useState<EventType>('reception');
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 
@@ -278,12 +313,14 @@ function BulkImportModal({ onClose }: BulkImportModalProps) {
     const items = names.map((name) => ({
       invite: {
         group: groupLabel,
+        eventType: eventTypeMode,
       },
       guest: {
         name,
         group: groupLabel,
         status: 'pending' as RsvpStatus,
         plusOne: false,
+        eventType: eventTypeMode,
       }
     }));
 
@@ -354,6 +391,34 @@ function BulkImportModal({ onClose }: BulkImportModalProps) {
           )}
         </div>
 
+        {/* Event type selector */}
+        <div style={{ marginBottom: '1rem' }}>
+          <p style={{ margin: '0 0 8px', fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', letterSpacing: '0.05em' }}>TIPO DE EVENTO</p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {([
+              { value: 'reception' as EventType, label: '🥂 Recepção', desc: 'Jantar / Festa' },
+              { value: 'ceremony' as EventType, label: '⛪ Cerimônia', desc: 'Apenas cerimônia' },
+            ]).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setEventTypeMode(opt.value)}
+                style={{
+                  flex: 1, padding: '10px 12px', borderRadius: '10px',
+                  border: `1.5px solid ${eventTypeMode === opt.value ? (opt.value === 'reception' ? '#8b5cf6' : '#3b82f6') : 'var(--color-border)'}`,
+                  background: eventTypeMode === opt.value
+                    ? (opt.value === 'reception' ? 'rgba(139,92,246,0.08)' : 'rgba(59,130,246,0.08)')
+                    : 'var(--color-surface-2)',
+                  cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s',
+                }}
+              >
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: eventTypeMode === opt.value ? (opt.value === 'reception' ? '#8b5cf6' : '#3b82f6') : 'var(--color-text-primary)' }}>{opt.label}</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Textarea */}
         <div style={{ marginBottom: '1rem' }}>
           <p style={{ margin: '0 0 8px', fontSize: '0.72rem', fontWeight: 600, color: 'var(--color-text-secondary)', letterSpacing: '0.05em' }}>LISTA DE NOMES</p>
@@ -414,6 +479,7 @@ function BulkImportModal({ onClose }: BulkImportModalProps) {
 export function ConvidadosPage() {
   const { guests, invitesWithGuests, deleteInvite, deleteGuest, splitGuest } = useWedding();
   const [filter, setFilter] = useState<'all' | RsvpStatus>('all');
+  const [eventFilter, setEventFilter] = useState<'all' | EventType>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Modais
@@ -440,11 +506,18 @@ export function ConvidadosPage() {
   const confirmed = guests.filter((g) => g.status === 'confirmed').length;
   const pending = guests.filter((g) => g.status === 'pending').length;
   const declined = guests.filter((g) => g.status === 'declined').length;
+  const ceremonyCount = invitesWithGuests
+    .filter((iwg) => iwg.invite.eventType === 'ceremony')
+    .reduce((acc, iwg) => acc + iwg.guests.length, 0);
+  const receptionCount = totalGuests - ceremonyCount;
 
   // Filtragem
   const filtered = invitesWithGuests.filter((iwg) => {
-    if (filter === 'all') return true;
-    return iwg.guests.some((g) => g.status === filter);
+    const matchesRsvp = filter === 'all' || iwg.guests.some((g) => g.status === filter);
+    const matchesEvent = eventFilter === 'all' ||
+      (eventFilter === 'reception' && (!iwg.invite.eventType || iwg.invite.eventType === 'reception')) ||
+      (eventFilter === 'ceremony' && iwg.invite.eventType === 'ceremony');
+    return matchesRsvp && matchesEvent;
   });
 
   function toggleExpand(inviteId: string) {
@@ -480,7 +553,7 @@ export function ConvidadosPage() {
       <PageHeader
         icon={<Users size={22} color="var(--color-brand)" />}
         title="Convidados"
-        sub={`${totalInvites} convites · ${totalGuests} pessoas no total · ${confirmed} confirmados`}
+        sub={`${totalInvites} convites · ${totalGuests} pessoas · ${receptionCount} na recepção · ${ceremonyCount} na cerimônia`}
         action={
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
@@ -528,7 +601,36 @@ export function ConvidadosPage() {
         </div>
       )}
 
-      {/* Summary chips */}
+      {/* Event type tabs */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '1rem', background: 'var(--color-surface-2)', padding: '4px', borderRadius: '12px', width: 'fit-content', border: '1px solid var(--color-border)' }}>
+        {([
+          { value: 'all', label: 'Todos', icon: <Users size={13} /> },
+          { value: 'reception', label: `Recepção (${receptionCount})`, icon: <Utensils size={13} /> },
+          { value: 'ceremony', label: `Cerimônia (${ceremonyCount})`, icon: <Church size={13} /> },
+        ] as { value: 'all' | EventType; label: string; icon: React.ReactNode }[]).map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setEventFilter(tab.value)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', borderRadius: '9px', fontSize: '0.8rem', fontWeight: 600,
+              border: 'none',
+              background: eventFilter === tab.value
+                ? (tab.value === 'reception' ? '#8b5cf6' : tab.value === 'ceremony' ? '#3b82f6' : 'var(--color-surface)')
+                : 'transparent',
+              color: eventFilter === tab.value
+                ? (tab.value === 'all' ? 'var(--color-text-primary)' : '#fff')
+                : 'var(--color-text-secondary)',
+              cursor: 'pointer', transition: 'all 0.15s',
+              boxShadow: eventFilter === tab.value ? '0 1px 4px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* RSVP summary chips */}
       <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
         {[
           { label: 'Todos', value: 'all', count: totalGuests, color: 'var(--color-text-secondary)', bg: 'var(--color-surface-2)' },
@@ -624,8 +726,9 @@ export function ConvidadosPage() {
                         <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
                           {iwg.displayName}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                          {invite.group}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.73rem', color: 'var(--color-text-muted)' }}>{invite.group}</span>
+                          <EventBadge eventType={invite.eventType} />
                         </div>
                       </td>
 
@@ -796,6 +899,29 @@ export function ConvidadosPage() {
         />
       )}
     </div>
+  );
+}
+
+function EventBadge({ eventType }: { eventType?: EventType }) {
+  if (!eventType || eventType === 'reception') {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '3px',
+        padding: '2px 7px', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 600,
+        color: '#7c3aed', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)',
+      }}>
+        🥂 Recepção
+      </span>
+    );
+  }
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '3px',
+      padding: '2px 7px', borderRadius: '999px', fontSize: '0.68rem', fontWeight: 600,
+      color: '#1d4ed8', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)',
+    }}>
+      ⛪ Cerimônia
+    </span>
   );
 }
 

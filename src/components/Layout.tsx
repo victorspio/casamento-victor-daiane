@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Heart, Settings, Users, CheckSquare, DollarSign, Truck, LayoutDashboard } from 'lucide-react';
+import { Heart, Settings, Users, CheckSquare, DollarSign, Truck, LayoutDashboard, Gift } from 'lucide-react';
 import { useState } from 'react';
 import { useWedding } from '../context/WeddingContext';
 import { SettingsModal } from './SettingsModal';
@@ -9,11 +9,12 @@ interface LayoutProps {
 }
 
 const NAV_ITEMS = [
-  { to: '/',             label: 'Dashboard',    icon: LayoutDashboard },
-  { to: '/convidados',   label: 'Convidados',   icon: Users },
-  { to: '/tarefas',      label: 'Tarefas',      icon: CheckSquare },
-  { to: '/financeiro',   label: 'Financeiro',   icon: DollarSign },
-  { to: '/fornecedores', label: 'Fornecedores', icon: Truck },
+  { to: '/',                label: 'Dashboard',   icon: LayoutDashboard },
+  { to: '/convidados',      label: 'Convidados',  icon: Users },
+  { to: '/tarefas',         label: 'Tarefas',     icon: CheckSquare },
+  { to: '/financeiro',      label: 'Financeiro',  icon: DollarSign },
+  { to: '/fornecedores',    label: 'Fornecedores', icon: Truck },
+  { to: '/lista-presentes', label: 'Presentes',   icon: Gift },
 ];
 
 export function Layout({ children }: LayoutProps) {

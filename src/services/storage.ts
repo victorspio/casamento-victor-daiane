@@ -11,6 +11,7 @@ import type {
   WeddingTask,
   BudgetItem,
   Vendor,
+  GiftItem,
 } from '../types/wedding';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -207,3 +208,19 @@ export async function deleteVendor(id: string): Promise<void> {
   await deleteDoc(vendorDocRef);
 }
 
+// ─── Gift Items ───────────────────────────────────────────────────────────────
+
+export async function addGiftItem(item: Omit<GiftItem, 'id'>): Promise<void> {
+  const colRef = collection(db, 'wedding', 'config', 'giftItems');
+  await addDoc(colRef, stripUndefined(item));
+}
+
+export async function updateGiftItem(id: string, updates: Partial<Omit<GiftItem, 'id'>>): Promise<void> {
+  const docRef = doc(db, 'wedding', 'config', 'giftItems', id);
+  await updateDoc(docRef, stripUndefined(updates));
+}
+
+export async function deleteGiftItem(id: string): Promise<void> {
+  const docRef = doc(db, 'wedding', 'config', 'giftItems', id);
+  await deleteDoc(docRef);
+}

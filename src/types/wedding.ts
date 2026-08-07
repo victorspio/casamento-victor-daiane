@@ -2,6 +2,8 @@
 
 export type RsvpStatus = 'confirmed' | 'pending' | 'declined';
 
+export type EventType = 'reception' | 'ceremony';
+
 export interface Guest {
   id: string;
   inviteId: string;       // cada convidado pertence a exatamente um convite
@@ -10,6 +12,7 @@ export interface Guest {
   status: RsvpStatus;
   plusOne: boolean;
   tableNumber?: number;
+  eventType?: EventType;  // 'reception' = recepção | 'ceremony' = cerimônia
 }
 
 export interface GuestSummary {
@@ -27,6 +30,7 @@ export interface Invite {
   displayName?: string;   // se ausente, gerado concatenando nomes dos guests
   group: string;
   tableNumber?: number;
+  eventType?: EventType;  // 'reception' = recepção | 'ceremony' = cerimônia
 }
 
 /** Tipo derivado calculado em memória — convite + seus convidados. */
@@ -143,4 +147,16 @@ export interface DashboardData {
   topTasks: WeddingTask[];
   budgetSummary: BudgetSummary;
   recentVendors: Vendor[];
+}
+
+// ─── Gift List Types ────────────────────────────────────────────────────────────
+
+export interface GiftItem {
+  id: string;
+  name: string;
+  url?: string;         // link direto para o produto
+  category?: string;    // ex: 'Cozinha', 'Quarto', 'Casa'
+  isPurchased: boolean;
+  purchasedAt?: string; // ISO 8601
+  sortOrder: number;    // para ordenação manual
 }

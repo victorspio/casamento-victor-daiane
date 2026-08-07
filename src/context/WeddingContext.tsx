@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import type { WeddingConfig, Guest, Invite, InviteWithGuests, WeddingTask, BudgetItem, Vendor } from '../types/wedding';
+import type { WeddingConfig, Guest, Invite, InviteWithGuests, WeddingTask, BudgetItem, Vendor, GiftItem } from '../types/wedding';
 import * as storage from '../services/storage';
 import { getAutomaticPriority } from '../data/mockData';
 import { db } from '../lib/firebase';
@@ -16,6 +16,7 @@ interface WeddingContextValue {
   tasks: WeddingTask[];
   budgetItems: BudgetItem[];
   vendors: Vendor[];
+  giftItems: GiftItem[];
 
   // Config actions
   updateConfig: (config: WeddingConfig) => void;
@@ -48,6 +49,11 @@ interface WeddingContextValue {
   updateVendor: (id: string, updates: Partial<Omit<Vendor, 'id'>>) => void;
   deleteVendor: (id: string) => void;
 
+  // Gift actions
+  addGiftItem: (item: Omit<GiftItem, 'id'>) => void;
+  updateGiftItem: (id: string, updates: Partial<Omit<GiftItem, 'id'>>) => void;
+  deleteGiftItem: (id: string) => void;
+
   // Reset
   resetAll: () => void;
 }
@@ -78,6 +84,7 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
   const [tasks, setTasks] = useState<WeddingTask[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [giftItems, setGiftItems] = useState<GiftItem[]>([]);
 
   // Garante que a migração só roda uma vez por sessão
   const migrationDoneRef = useRef(false);
@@ -140,6 +147,15 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
       setVendors(list);
     });
 
+    // 7. Gift Items
+    const unsubGiftItems = onSnapshot(collection(db, 'wedding', 'config', 'giftItems'), (snapshot) => {
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      } as GiftItem));
+      setGiftItems(list.sort((a, b) => a.sortOrder - b.sortOrder));
+    });
+
     return () => {
       unsubConfig();
       unsubGuests();
@@ -147,6 +163,7 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
       unsubTasks();
       unsubBudget();
       unsubVendors();
+      unsubGiftItems();
     };
   }, []);
 
@@ -277,6 +294,19 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
     storage.deleteVendor(id);
   }, []);
 
+  // Gift Items
+  const addGiftItem = useCallback((item: Omit<GiftItem, 'id'>) => {
+    storage.addGiftItem(item);
+  }, []);
+
+  const updateGiftItem = useCallback((id: string, updates: Partial<Omit<GiftItem, 'id'>>) => {
+    storage.updateGiftItem(id, updates);
+  }, []);
+
+  const deleteGiftItem = useCallback((id: string) => {
+    storage.deleteGiftItem(id);
+  }, []);
+
   // Reset all
   const resetAll = useCallback(() => {
     storage.saveConfig({ groom: '', bride: '', weddingDate: '', venue: '', city: '', targetBudget: 0 });
@@ -292,7 +322,7 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
   return (
     <WeddingContext.Provider
       value={{
-        config, guests, invites, invitesWithGuests, tasks, budgetItems, vendors,
+        config, guests, invites, invitesWithGuests, tasks, budgetItems, vendors, giftItems,
         updateConfig,
         createInvite, bulkCreateInvites, updateInvite, deleteInvite,
         addPersonToInvite, mergeInvites, splitGuest,
@@ -300,6 +330,7 @@ export function WeddingProvider({ children }: { children: React.ReactNode }) {
         addTask, updateTask, deleteTask,
         addBudgetItem, updateBudgetItem, deleteBudgetItem,
         addVendor, updateVendor, deleteVendor,
+        addGiftItem, updateGiftItem, deleteGiftItem,
         resetAll,
       }}
     >
