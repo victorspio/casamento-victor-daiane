@@ -53,9 +53,9 @@ export function HeroBanner({ groom, bride, venue, city, weddingDate, countdown }
         flexDirection: 'column',
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundImage: 'url(/hero-bg.png)',
+        backgroundImage: 'url(/daiane&victor-previas-19.webp)',
         backgroundSize: 'cover',
-        backgroundPosition: 'center 30%',
+        backgroundPosition: 'center center',
       }}
       role="banner"
       aria-label="Hero do casamento com contagem regressiva"

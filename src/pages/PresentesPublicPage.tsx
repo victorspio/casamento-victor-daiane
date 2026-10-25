@@ -3,6 +3,8 @@ import { Heart, Gift, ExternalLink, CheckCircle2, ShoppingBag, Sparkles } from '
 import { db } from '../lib/firebase';
 import { doc, collection, onSnapshot, updateDoc } from 'firebase/firestore';
 import type { GiftItem, WeddingConfig } from '../types/wedding';
+import { calculateCountdown } from '../data/mockData';
+import type { CountdownData } from '../types/wedding';
 
 export function PresentesPublicPage() {
   const [config, setConfig] = useState<WeddingConfig | null>(null);
@@ -10,6 +12,7 @@ export function PresentesPublicPage() {
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [filterCategory, setFilterCategory] = useState<string>('todas');
+  const [countdown, setCountdown] = useState<CountdownData>({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   useEffect(() => {
     const unsubConfig = onSnapshot(doc(db, 'wedding', 'config'), (snap) => {
@@ -27,6 +30,16 @@ export function PresentesPublicPage() {
 
     return () => { unsubConfig(); unsubGifts(); };
   }, []);
+
+  useEffect(() => {
+    if (!config?.weddingDate) return;
+    const timer = setInterval(
+      () => setCountdown(calculateCountdown(config.weddingDate)),
+      1000
+    );
+    setCountdown(calculateCountdown(config.weddingDate));
+    return () => clearInterval(timer);
+  }, [config?.weddingDate]);
 
   const handleToggle = async (item: GiftItem) => {
     if (togglingId) return;
@@ -77,65 +90,74 @@ export function PresentesPublicPage() {
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', fontFamily: 'var(--font-body)' }}>
       {/* ── Hero Header ─────────────────────────────────────────── */}
       <header style={{
-        background: `linear-gradient(135deg, #2d1b12 0%, #5c3320 40%, #8a6d52 100%)`,
-        padding: '3.5rem 1.5rem 4rem',
-        textAlign: 'center',
         position: 'relative',
         overflow: 'hidden',
+        minHeight: '340px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundImage: 'url(/daiane&victor-previas-19.webp)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center center',
       }}>
-        <div style={{
-          position: 'absolute', inset: 0, opacity: 0.06,
-          backgroundImage: `radial-gradient(circle at 20% 50%, #fff 1px, transparent 1px),
-            radial-gradient(circle at 80% 50%, #fff 1px, transparent 1px)`,
-          backgroundSize: '40px 40px',
+        {/* Cinematic overlay */}
+        <div aria-hidden="true" style={{
+          position: 'absolute', inset: 0,
+          background: 'linear-gradient(to bottom, rgba(10,8,6,0.45) 0%, rgba(10,8,6,0.65) 50%, rgba(10,8,6,0.80) 100%)',
         }} />
 
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
-            <div style={{
-              width: '56px', height: '56px', borderRadius: '50%',
-              background: 'rgba(255,255,255,0.12)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: '1px solid rgba(255,255,255,0.2)',
-            }}>
-              <Gift size={26} color="#f5e6d3" />
-            </div>
-          </div>
-
+        {/* Content */}
+        <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', padding: '2.5rem 2rem', width: '100%' }}>
+          {/* Eyebrow */}
           <p style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: '0.8rem', letterSpacing: '0.25em', textTransform: 'uppercase',
-            color: 'rgba(255,255,255,0.55)', margin: '0 0 0.5rem',
+            fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.22em',
+            textTransform: 'uppercase', color: 'rgba(255,255,255,0.55)', marginBottom: '0.5rem',
           }}>
-            Lista de Presentes
+            ✦ Lista de Presentes ✦
           </p>
 
+          {/* Names */}
           <h1 style={{
-            fontFamily: 'var(--font-sans)',
-            fontSize: 'clamp(2rem, 5vw, 3.5rem)',
-            fontWeight: 700, color: '#fff',
-            margin: '0 0 0.75rem',
-            textShadow: '0 2px 24px rgba(0,0,0,0.3)',
-            letterSpacing: '-0.02em',
+            fontSize: 'clamp(2.2rem, 6vw, 4rem)', fontWeight: 700, color: '#fff',
+            lineHeight: 1.1, marginBottom: '0.5rem', textShadow: '0 2px 24px rgba(0,0,0,0.4)',
+            fontFamily: 'var(--font-display)',
           }}>
             {coupleLabel}
           </h1>
 
+          {/* Date */}
           {config?.weddingDate && (
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem', margin: '0 0 2rem' }}>
-              {new Date(config.weddingDate + 'T12:00:00').toLocaleDateString('pt-BR', {
-                day: 'numeric', month: 'long', year: 'numeric',
-              })}
-            </p>
+            <div style={{ marginBottom: '2rem' }}>
+              <p style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.65)', fontWeight: 400, letterSpacing: '0.05em' }}>
+                {new Date(config.weddingDate + 'T12:00:00').toLocaleDateString('pt-BR', {
+                  day: 'numeric', month: 'long', year: 'numeric',
+                })}
+              </p>
+            </div>
           )}
 
+          {/* Countdown */}
+          {config?.weddingDate && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap', marginBottom: '2rem' }}>
+              <CountdownUnit value={countdown.days} label="Dias" />
+              <Separator />
+              <CountdownUnit value={countdown.hours} label="Horas" />
+              <Separator />
+              <CountdownUnit value={countdown.minutes} label="Minutos" />
+              <Separator />
+              <CountdownUnit value={countdown.seconds} label="Segundos" />
+            </div>
+          )}
+
+          {/* Progress bar */}
           {total > 0 && (
             <div style={{
               display: 'inline-block',
               background: 'rgba(255,255,255,0.1)',
               backdropFilter: 'blur(10px)',
               borderRadius: '16px',
-              padding: '1.25rem 2rem',
+              padding: '1rem 2rem',
               border: '1px solid rgba(255,255,255,0.15)',
               minWidth: '280px',
             }}>
@@ -242,6 +264,28 @@ export function PresentesPublicPage() {
         </p>
       </footer>
     </div>
+  );
+}
+
+// ── Countdown Components ────────────────────────────────────────────────────
+
+function CountdownUnit({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="countdown-unit">
+      <span className="countdown-number">{String(value).padStart(2, '0')}</span>
+      <span className="countdown-label">{label}</span>
+    </div>
+  );
+}
+
+function Separator() {
+  return (
+    <span
+      className="countdown-number"
+      style={{ color: 'rgba(255,255,255,0.4)', marginBottom: '20px', fontSize: '2rem' }}
+    >
+      :
+    </span>
   );
 }
 
